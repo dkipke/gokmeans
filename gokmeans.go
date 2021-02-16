@@ -39,8 +39,10 @@ and then classifies additional observations with the Nearest function.
 package gokmeans
 
 import (
+	"math"
 	"math/rand"
-	"time"
+
+	"github.com/gonum/floats"
 )
 
 // Node represents an observation of floating point values
@@ -50,32 +52,15 @@ type Node []float64
 // clusterCount. It will stop adjusting centroids after maxRounds is reached. If there are less
 // observations than the number of centroids requested, then Train will return (false, nil).
 func Train(Nodes []Node, clusterCount int, maxRounds int) (bool, []Node) {
-	if int(len(Nodes)) < clusterCount {
-		return false, nil
-	}
-
-	// Check to make sure everything is consistent, dimension-wise
-	stdLen := 0
-	for i, Node := range Nodes {
-		curLen := len(Node)
-
-		if i > 0 && len(Node) != stdLen {
-			return false, nil
-		}
-
-		stdLen = curLen
-	}
 
 	centroids := make([]Node, clusterCount)
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	// Pick centroid starting points from Nodes
 	for i := 0; i < clusterCount; i++ {
-		srcIndex := r.Intn(len(Nodes))
+		srcIndex := rand.Intn(len(Nodes))
 		srcLen := len(Nodes[srcIndex])
 		centroids[i] = make(Node, srcLen)
-		copy(centroids[i], Nodes[r.Intn(len(Nodes))])
+		copy(centroids[i], Nodes[rand.Intn(len(Nodes))])
 	}
 
 	return Train2(Nodes, clusterCount, maxRounds, centroids)
@@ -89,6 +74,9 @@ func Train2(Nodes []Node, clusterCount int, maxRounds int, centroids []Node) (bo
 		movement = false
 
 		groups := make(map[int][]Node)
+		for k := range centroids {
+			groups[k] = make([]Node, 0, len(Nodes))
+		}
 
 		for _, Node := range Nodes {
 			near := Nearest(Node, centroids)
@@ -110,17 +98,7 @@ func Train2(Nodes []Node, clusterCount int, maxRounds int, centroids []Node) (bo
 
 // equal determines if two nodes have the same values.
 func equal(node1, node2 Node) bool {
-	if len(node1) != len(node2) {
-		return false
-	}
-
-	for i, v := range node1 {
-		if v != node2[i] {
-			return false
-		}
-	}
-
-	return true
+	return floats.EqualApprox(node1, node2, 0.001)
 }
 
 // Nearest return the index of the closest centroid from nodes
@@ -160,8 +138,7 @@ func distance(node1 Node, node2 Node) float64 {
 
 	for i, _ := range node1 {
 		go func(i int) {
-			diff := node1[i] - node2[i]
-			squares[i] = diff * diff
+			squares[i] = math.Abs(node1[i] - node2[i]) //diff * diff
 			cnt <- 1
 		}(i)
 	}
